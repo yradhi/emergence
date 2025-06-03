@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergence of Ideas</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0a0a0a;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ffffff;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #ffffff;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        button {
+            background: rgba(100, 200, 255, 0.8);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: rgba(100, 200, 255, 1);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="info">
+            <h3>Emergence of Ideas</h3>
+            <p>Watch as individual ideas (glowing spheres) float through space.<br>
+            When they come close together, new emergent structures form.<br>
+            Mouse: Rotate view | Scroll: Zoom</p>
+        </div>
+        
+        <div id="controls">
+            <button onclick="addIdea()">Add New Idea</button>
+            <button onclick="resetScene()">Reset Scene</button>
+            <button onclick="toggleAnimation()">Pause/Play</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, ideas = [], emergentStructures = [];
+        let animationPaused = false;
+        let mouseX = 0, mouseY = 0;
+        
+        // Colors for different types of ideas
+        const ideaColors = [
+            0x64C8FF, // Blue - Logic/Science
+            0xFF6B9D, // Pink - Creativity/Art
+            0x9BFF64, // Green - Nature/Growth
+            0xFFB464, // Orange - Innovation/Energy
+            0xC864FF, // Purple - Philosophy/Wisdom
+            0xFF6464, // Red - Passion/Emotion
+            0x64FFF0, // Cyan - Technology/Future
+        ];
+        
+        const emergentColors = [
+            0xFFD700, // Gold
+            0xFF69B4, // Hot Pink
+            0x00CED1, // Dark Turquoise
+            0xFF4500, // Orange Red
+            0x9370DB, // Medium Purple
+        ];
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x0a0a0a, 50, 200);
+            
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 50);
+            
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x0a0a0a, 1);
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+            
+            const pointLight = new THREE.PointLight(0xffffff, 1, 200);
+            pointLight.position.set(0, 0, 50);
+            scene.add(pointLight);
+            
+            // Create initial ideas
+            for (let i = 0; i < 12; i++) {
+                createIdea();
+            }
+            
+            // Mouse controls
+            setupMouseControls();
+            
+            // Start animation
+            animate();
+        }
+        
+        function createIdea() {
+            const geometry = new THREE.SphereGeometry(1 + Math.random() * 2, 16, 16);
+            const color = ideaColors[Math.floor(Math.random() * ideaColors.length)];
+            
+            const material = new THREE.MeshPhongMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.8,
+                emissive: color,
+                emissiveIntensity: 0.3
+            });
+            
+            const idea = new THREE.Mesh(geometry, material);
+            
+            // Random position
+            idea.position.set(
+                (Math.random() - 0.5) * 60,
+                (Math.random() - 0.5) * 60,
+                (Math.random() - 0.5) * 60
+            );
+            
+            // Random velocity
+            idea.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.2,
+                (Math.random() - 0.5) * 0.2,
+                (Math.random() - 0.5) * 0.2
+            );
+            
+            // Add pulsing glow effect
+            const glowGeometry = new THREE.SphereGeometry(idea.geometry.parameters.radius * 2, 16, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.1,
+                side: THREE.BackSide
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            idea.add(glow);
+            idea.glow = glow;
+            
+            // Metadata
+            idea.originalColor = color;
+            idea.pulsePhase = Math.random() * Math.PI * 2;
+            idea.hasInteracted = false;
+            
+            scene.add(idea);
+            ideas.push(idea);
+        }
+        
+        function createEmergentStructure(idea1, idea2) {
+            // Don't create if either idea already participated in emergence
+            if (idea1.hasInteracted || idea2.hasInteracted) return;
+            
+            const midpoint = new THREE.Vector3()
+                .addVectors(idea1.position, idea2.position)
+                .multiplyScalar(0.5);
+            
+            // Create a more complex emergent structure
+            const group = new THREE.Group();
+            
+            // Central core - combination of the two ideas
+            const coreGeometry = new THREE.OctahedronGeometry(3);
+            const coreColor = emergentColors[Math.floor(Math.random() * emergentColors.length)];
+            const coreMaterial = new THREE.MeshPhongMaterial({
+                color: coreColor,
+                transparent: true,
+                opacity: 0.9,
+                emissive: coreColor,
+                emissiveIntensity: 0.4
+            });
+            const core = new THREE.Mesh(coreGeometry, coreMaterial);
+            group.add(core);
+            
+            // Orbiting elements representing the synthesis
+            for (let i = 0; i < 6; i++) {
+                const orbitGeometry = new THREE.TetrahedronGeometry(0.5);
+                const orbitMaterial = new THREE.MeshPhongMaterial({
+                    color: Math.random() > 0.5 ? idea1.originalColor : idea2.originalColor,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const orbit = new THREE.Mesh(orbitGeometry, orbitMaterial);
+                
+                const radius = 5 + Math.random() * 3;
+                const angle = (i / 6) * Math.PI * 2;
+                orbit.position.set(
+                    Math.cos(angle) * radius,
+                    Math.sin(angle) * radius,
+                    (Math.random() - 0.5) * 2
+                );
+                
+                orbit.orbitRadius = radius;
+                orbit.orbitSpeed = 0.02 + Math.random() * 0.02;
+                orbit.orbitAngle = angle;
+                
+                group.add(orbit);
+                group.orbitingElements = group.orbitingElements || [];
+                group.orbitingElements.push(orbit);
+            }
+            
+            group.position.copy(midpoint);
+            group.rotationSpeed = {
+                x: (Math.random() - 0.5) * 0.01,
+                y: (Math.random() - 0.5) * 0.01,
+                z: (Math.random() - 0.5) * 0.01
+            };
+            
+            scene.add(group);
+            emergentStructures.push(group);
+            
+            // Mark ideas as having interacted
+            idea1.hasInteracted = true;
+            idea2.hasInteracted = true;
+            
+            // Fade out original ideas
+            fadeOutIdea(idea1);
+            fadeOutIdea(idea2);
+            
+            // Create connection beam
+            createConnectionBeam(idea1.position, idea2.position, midpoint);
+        }
+        
+        function createConnectionBeam(pos1, pos2, center) {
+            const points = [pos1.clone(), center.clone(), pos2.clone()];
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.8
+            });
+            const beam = new THREE.Line(geometry, material);
+            scene.add(beam);
+            
+            // Fade out the beam
+            const fadeBeam = () => {
+                beam.material.opacity -= 0.02;
+                if (beam.material.opacity <= 0) {
+                    scene.remove(beam);
+                } else {
+                    requestAnimationFrame(fadeBeam);
+                }
+            };
+            setTimeout(fadeBeam, 1000);
+        }
+        
+        function fadeOutIdea(idea) {
+            const fadeOut = () => {
+                idea.material.opacity -= 0.02;
+                idea.glow.material.opacity -= 0.005;
+                if (idea.material.opacity <= 0) {
+                    scene.remove(idea);
+                    const index = ideas.indexOf(idea);
+                    if (index > -1) ideas.splice(index, 1);
+                } else {
+                    requestAnimationFrame(fadeOut);
+                }
+            };
+            fadeOut();
+        }
+        
+        function updateIdeas() {
+            ideas.forEach((idea, index) => {
+                if (idea.hasInteracted) return;
+                
+                // Update position
+                idea.position.add(idea.velocity);
+                
+                // Boundary bouncing
+                ['x', 'y', 'z'].forEach(axis => {
+                    if (Math.abs(idea.position[axis]) > 30) {
+                        idea.velocity[axis] *= -1;
+                    }
+                });
+                
+                // Pulsing glow effect
+                idea.pulsePhase += 0.05;
+                const pulse = 0.3 + Math.sin(idea.pulsePhase) * 0.2;
+                idea.material.emissiveIntensity = pulse;
+                idea.glow.material.opacity = 0.05 + pulse * 0.1;
+                
+                // Check for intersections with other ideas
+                for (let j = index + 1; j < ideas.length; j++) {
+                    const otherIdea = ideas[j];
+                    if (otherIdea.hasInteracted) continue;
+                    
+                    const distance = idea.position.distanceTo(otherIdea.position);
+                    if (distance < 8) {
+                        createEmergentStructure(idea, otherIdea);
+                        break;
+                    }
+                }
+            });
+        }
+        
+        function updateEmergentStructures() {
+            emergentStructures.forEach(structure => {
+                // Rotate the main structure
+                structure.rotation.x += structure.rotationSpeed.x;
+                structure.rotation.y += structure.rotationSpeed.y;
+                structure.rotation.z += structure.rotationSpeed.z;
+                
+                // Update orbiting elements
+                if (structure.orbitingElements) {
+                    structure.orbitingElements.forEach(orbit => {
+                        orbit.orbitAngle += orbit.orbitSpeed;
+                        orbit.position.x = Math.cos(orbit.orbitAngle) * orbit.orbitRadius;
+                        orbit.position.y = Math.sin(orbit.orbitAngle) * orbit.orbitRadius;
+                        orbit.rotation.x += 0.02;
+                        orbit.rotation.y += 0.01;
+                    });
+                }
+            });
+        }
+        
+        function setupMouseControls() {
+            let mouseDown = false;
+            let mouseXOnMouseDown = 0;
+            let mouseYOnMouseDown = 0;
+            let targetRotationX = 0;
+            let targetRotationY = 0;
+            let currentRotationX = 0;
+            let currentRotationY = 0;
+            
+            renderer.domElement.addEventListener('mousedown', (event) => {
+                mouseDown = true;
+                mouseXOnMouseDown = event.clientX;
+                mouseYOnMouseDown = event.clientY;
+            });
+            
+            renderer.domElement.addEventListener('mouseup', () => {
+                mouseDown = false;
+            });
+            
+            renderer.domElement.addEventListener('mousemove', (event) => {
+                if (mouseDown) {
+                    targetRotationY = (event.clientX - mouseXOnMouseDown) * 0.01;
+                    targetRotationX = (event.clientY - mouseYOnMouseDown) * 0.01;
+                }
+            });
+            
+            renderer.domElement.addEventListener('wheel', (event) => {
+                camera.position.z += event.deltaY * 0.05;
+                camera.position.z = Math.max(10, Math.min(100, camera.position.z));
+            });
+            
+            // Smooth camera rotation
+            function updateCamera() {
+                currentRotationX += (targetRotationX - currentRotationX) * 0.05;
+                currentRotationY += (targetRotationY - currentRotationY) * 0.05;
+                
+                camera.position.x = Math.sin(currentRotationY) * camera.position.z;
+                camera.position.y = Math.sin(currentRotationX) * camera.position.z;
+                camera.lookAt(0, 0, 0);
+                
+                requestAnimationFrame(updateCamera);
+            }
+            updateCamera();
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (!animationPaused) {
+                updateIdeas();
+                updateEmergentStructures();
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Control functions
+        function addIdea() {
+            createIdea();
+        }
+        
+        function resetScene() {
+            // Clear existing objects
+            ideas.forEach(idea => scene.remove(idea));
+            emergentStructures.forEach(structure => scene.remove(structure));
+            ideas = [];
+            emergentStructures = [];
+            
+            // Create new initial ideas
+            for (let i = 0; i < 12; i++) {
+                createIdea();
+            }
+        }
+        
+        function toggleAnimation() {
+            animationPaused = !animationPaused;
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Initialize the scene
+        init();
+    </script>
+</body>
+</html>
